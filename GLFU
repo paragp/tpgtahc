@@ -1,0 +1,25 @@
+CREATE Procedure [dbo].[GetLDCDetailsforUnderwriter] --1010012,'CE7C2165-DF3C-4655-A4CC-F3DE423252CA'
+ @ApplicationID BIGINT,
+ @UserId uniqueIdentifier=Null
+ as 
+ DECLARE @ControlledProgram Int=0
+ Select @ControlledProgram=R.PickUpId From Applications A 
+ JOIN RepayMechanismMaster  R on R.PickUpValue=A.controlProgram and R.PickType=15
+ where A.ApplicationId=@ApplicationId
+ Select ExposureatUnderwriting ,AdjustedCustIdExposure,ExposureatCustomerIdCreation from CustomerIdRequestDetails where ApplicationId=@ApplicationID
+ Select a.DetailsId as LDCDetailsId,b.HeaderId as HeaderId,c.GroupId,U.Name as Groupcode,c.LDCId,c.LDCCharacterstics,c.LDCName as LDC,a.ExposureApprovalLevel,
+   (case WHEN @ControlledProgram=16 THEN ''
+		 When a.LDCApprovalLevel not in (1,2,3,4) then Desig.Name 
+		 else ('Level-'+Convert(varchar,IsNull( a.LDCApprovalLevel,0))+', '+Desig.Name) end) as LDCLevel,
+    a.LDCApprovalLevel,isNull(a.Remark,'') as Remark,IsNull('Decision submitted by: ' + au.FullName +', On ' + dbo.DateTimeFormat(A.ApprovalDate)+',Status:'+(Case a.IsLDCApproved When 1 then 'Approved' when 0 then 'Rejected' else '' End)  ,'') as ApprovalBy,ApprovalRemark as ApprovarRemark  
+ from LDCDetails a
+ Join LDCHeaderDetails b on a.LDCHeaderId=b.HeaderId
+ JOIN Applications app on app.ApplicationID=b.ApplicationId
+ join LDCMaster c on c.LDCID=a.LDCId
+ Join utilityMaster U on U.Id=c.GroupId and U.Type=35
+ INNER JOIN UtilityMaster Desig on Desig.Id= a.LDCApprovalLevel and Desig.Type=34  --and Desig.OtherVal2 is not NULL and  Desig.OtherVal2  =@ControlledProgram 
+ LEFT JOIN CreditDOAApprovalMatrix DOA on DOA.DesignationId=Desig.Id and  DOA.ControlledProgram is not NULL 
+           and  DOA.ControlledProgram  =@ControlledProgram  and DOA.Scheme=app.Scheme
+		   and B.ModifiedDate between DOA.FromDate and DOA.ToDate
+ LEFT JOIN aspnet_Users au on au.UserId=a.ApprovedBy
+ where b.ApplicationId=@ApplicationId
